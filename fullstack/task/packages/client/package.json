@@ -4,6 +4,10 @@
     "version": "1.0.0",
     "dependencies": {
         "@apollo/client": "3.7.10",
+        "@emotion/react": "^11.14.0",
+        "@emotion/styled": "^11.14.1",
+        "@mui/icons-material": "^7.3.5",
+        "@mui/material": "^7.3.5",
         "graphql": "16.6.0",
         "graphql-tag": "2.12.6",
         "graphql-ws": "5.12.0",
