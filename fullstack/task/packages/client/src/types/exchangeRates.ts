@@ -13,6 +13,5 @@ export interface ExchangeRatesData {
     exchangeRates: {
         rates: ExchangeRate[];
         lastUpdated: string;
-        isFromCache: boolean;
     };
 }

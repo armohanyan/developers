@@ -19,24 +19,25 @@ import { ExchangeRatesData } from '../types/exchangeRates';
 const ExchangeRatesTable: React.FC = () => {
     const { data, loading, error } = useQuery<ExchangeRatesData>(EXCHANGE_RATES_QUERY);
 
-    if (loading)
+    if (loading) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" mt={6}>
                 <CircularProgress />
             </Box>
         );
+    }
 
-    if (error)
+    if (error) {
         return (
             <Box mt={4}>
                 <Alert severity="error">Error loading exchange rates: {error.message}</Alert>
             </Box>
         );
+    }
 
-    const { rates, lastUpdated, isFromCache } = data?.exchangeRates ?? {
+    const { rates, lastUpdated } = data?.exchangeRates ?? {
         rates: [],
         lastUpdated: '',
-        isFromCache: false,
     };
 
     return (
@@ -55,9 +56,6 @@ const ExchangeRatesTable: React.FC = () => {
                     color: 'text.secondary',
                 }}
             >
-                <Typography variant="body2" fontWeight="medium">
-                    {isFromCache ? 'Data from cache' : 'Live data'}
-                </Typography>
                 <Typography variant="caption">
                     Last updated: {new Date(lastUpdated).toLocaleString()}
                 </Typography>

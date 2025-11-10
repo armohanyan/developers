@@ -14,7 +14,6 @@ export const EXCHANGE_RATES_QUERY = gql`
                 updatedAt
             }
             lastUpdated
-            isFromCache
         }
     }
 `;

@@ -12,13 +12,26 @@ type Example {
   value: String!
 }
 
+type ExchangeRate {
+  id: ID!
+  createdAtUtc: DateTime!
+  updatedAtUtc: DateTime
+  deleteDateUtc: DateTime
+  version: Int!
+  country: String!
+  currency: String!
+  code: String!
+  rate: Float!
+  cacheTimestamp: DateTime!
+}
+
 """
 A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
 """
 scalar DateTime
 
 type Query {
-  exchangeRates: String!
+  exchangeRates: [ExchangeRate!]
   exampleByName(name: String!): Example
 }
 
