@@ -1,88 +1,129 @@
 import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
 import { InjectRepository } from '@nestjs/typeorm';
+import axios from 'axios';
 import { Repository } from 'typeorm';
+
+import { ExchangeRatesResponse } from './exchange-rate.type';
 import { ExchangeRate } from '../../entities';
 
 @Injectable()
 export class ExchangeRateService {
-    private readonly logger = new Logger(ExchangeRateService.name);
-    private readonly CACHE_LIFETIME_MS = 5 * 60 * 1000; // 5 minutes
-    private readonly BANK_API_URL =
-        'https://www.cnb.cz/en/financial_markets/foreign_exchange_market/exchange_rate_fixing/daily.txt';
+  private readonly CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+  private readonly CNB_API_URL =
+    // eslint-disable-next-line max-len
+    'https://www.cnb.cz/en/financial-markets/foreign-exchange-market/central-bank-exchange-rate-fixing/central-bank-exchange-rate-fixing/daily.txt';
 
-    constructor(
-        @InjectRepository(ExchangeRate)
-        private readonly exchangeRateRepository: Repository<ExchangeRate>
-    ) {}
+  private readonly logger = new Logger(ExchangeRateService.name);
 
-    /**
-     * Main method to retrieve exchange rates.
-     * Uses cache if fresh; otherwise fetches and updates new data.
-     */
-    public async getExchangeRates(): Promise<ExchangeRate[]> {
-        try {
-            console.log('mdaaa');
-            const now = new Date();
-            const cachedRates = await this.exchangeRateRepository.find();
+  constructor(
+    @InjectRepository(ExchangeRate)
+    private readonly exchangeRateRepository: Repository<ExchangeRate>,
+  ) {}
 
-            if (
-                cachedRates.length > 0 &&
-                !this.isCacheExpired(cachedRates[0].cacheTimestamp, now)
-            ) {
-                this.logger.debug('Returning cached exchange rates.');
-                return cachedRates;
-            }
+  /**
+   * Get exchange rates, using cache if valid.
+   */
+  async getExchangeRates(): Promise<ExchangeRatesResponse> {
+    const latestCache = await this.getLatestCacheTime();
 
-            this.logger.debug('Cache expired or empty — fetching new data from CNB...');
-            const freshRates = await this.fetchExchangeRatesFromBank();
-
-            // Replace old cache atomically
-            await this.exchangeRateRepository.clear();
-            await this.exchangeRateRepository.save(freshRates);
-
-            this.logger.debug(`Fetched and cached ${freshRates.length} new exchange rates.`);
-            return freshRates;
-        } catch (error) {
-            this.logger.error('Failed to fetch exchange rates', error.stack || error);
-            // Fallback: return cached data even if expired
-            const fallbackRates = await this.exchangeRateRepository.find();
-            if (fallbackRates.length > 0) {
-                this.logger.warn('Returning possibly outdated cached data due to fetch error.');
-                return fallbackRates;
-            }
-            throw new Error('Unable to fetch or load cached exchange rates.');
-        }
+    if (!latestCache || this.isCacheExpired(latestCache)) {
+      return this.fetchAndCacheRates();
     }
 
-    /**
-     * Fetches the latest exchange rates from the Czech National Bank public API.
-     */
-    private async fetchExchangeRatesFromBank(): Promise<ExchangeRate[]> {
-        const response = await axios.get(this.BANK_API_URL, { responseType: 'text' });
-        const lines = response.data.split('\n').slice(2).filter(Boolean);
+    const cachedRates = await this.getCachedRates();
+    return {
+      rates: cachedRates,
+      lastUpdated: latestCache,
+      isFromCache: true,
+    };
+  }
 
-        const now = new Date();
+  /**
+   * Check if cache is expired.
+   */
+  private isCacheExpired(latestCache: Date): boolean {
+    const age = Date.now() - latestCache.getTime();
+    return age >= this.CACHE_DURATION_MS;
+  }
 
-        return lines.map((line: string) => {
-            const [country, currency, amount, code, rate] = line.split('|');
-            const parsedRate = parseFloat(rate.replace(',', '.')) / Number(amount);
+  /**
+   * Get all cached rates ordered by creation date.
+   */
+  private getCachedRates(): Promise<ExchangeRate[]> {
+    return this.exchangeRateRepository.find({
+      order: { createdAt: 'DESC' },
+    });
+  }
 
-            return this.exchangeRateRepository.create({
-                country: country.trim(),
-                currency: currency.trim(),
-                code: code.trim(),
-                rate: parsedRate,
-                cacheTimestamp: now,
-            });
-        });
+  /**
+   * Get timestamp of the latest cached record.
+   */
+  private async getLatestCacheTime(): Promise<Date | null> {
+    try {
+      const latest = await this.exchangeRateRepository.find({
+        order: { createdAt: 'DESC' },
+        take: 1,
+      });
+      return latest.length ? latest[0].createdAt : null;
+    } catch (error) {
+      this.logger.error('Error fetching latest cache time', error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch exchange rates from CNB, parse and cache them.
+   */
+  private async fetchAndCacheRates(): Promise<ExchangeRatesResponse> {
+    try {
+      const { data } = await axios.get(this.CNB_API_URL);
+      const rates = this.parseCNBData(data);
+
+      // Clear old rates and save new ones atomically
+      await this.exchangeRateRepository.clear();
+      const savedRates = await this.exchangeRateRepository.save(rates);
+
+      return {
+        rates: savedRates,
+        lastUpdated: new Date(),
+        isFromCache: false,
+      };
+    } catch (error) {
+      this.logger.error('Error fetching CNB exchange rates', error);
+
+      const cachedRates = await this.getCachedRates();
+      const latestCache = await this.getLatestCacheTime();
+
+      return {
+        rates: cachedRates,
+        lastUpdated: latestCache ?? new Date(),
+        isFromCache: true,
+      };
+    }
+  }
+
+  /**
+   * Parse CNB text data into ExchangeRate entities.
+   */
+  private parseCNBData(data: string): Partial<ExchangeRate>[] {
+    const lines = data.trim().split('\n').slice(2); // skip header lines
+    const rates: Partial<ExchangeRate>[] = [];
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+
+      const [country, currency, amountStr, currencyCode, rateStr] = line.split('|');
+      if (!country || !currency || !amountStr || !currencyCode || !rateStr) continue;
+
+      rates.push({
+        country: country.trim(),
+        currency: currency.trim(),
+        amount: parseInt(amountStr.trim(), 10),
+        currencyCode: currencyCode.trim(),
+        rate: parseFloat(rateStr.trim().replace(',', '.')),
+      });
     }
 
-    /**
-     * Determines if cached data is expired based on timestamp.
-     */
-    private isCacheExpired(cacheTimestamp: Date, now: Date): boolean {
-        const cacheAge = now.getTime() - new Date(cacheTimestamp).getTime();
-        return cacheAge > this.CACHE_LIFETIME_MS;
-    }
+    return rates;
+  }
 }

@@ -1,13 +1,14 @@
 import { Query, Resolver } from '@nestjs/graphql';
-import { ExchangeRate } from '../../entities';
+
 import { ExchangeRateService } from './exchange-rate.service';
+import { ExchangeRatesResponse } from './exchange-rate.type';
 
 @Resolver()
 export class ExchangeRateResolver {
-    constructor(private readonly exchangeRateService: ExchangeRateService) {}
+  constructor(private readonly exchangeRateService: ExchangeRateService) {}
 
-    @Query(() => [ExchangeRate], { nullable: true })
-    async exchangeRates() {
-        return this.exchangeRateService.getExchangeRates();
-    }
+  @Query(() => ExchangeRatesResponse, { nullable: true })
+  async exchangeRates() {
+    return this.exchangeRateService.getExchangeRates();
+  }
 }

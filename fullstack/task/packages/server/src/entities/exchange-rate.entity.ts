@@ -1,37 +1,40 @@
-import { Field, Float, ObjectType } from '@nestjs/graphql';
-import { IsNumber, IsPositive, IsString, MinLength } from 'class-validator';
-import { Column, Entity } from 'typeorm';
-import { EntityWithMeta } from '../common';
-import { VAR_CHAR } from './constants';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
-@ObjectType()
 @Entity()
-export class ExchangeRate extends EntityWithMeta {
-    @IsString()
-    @MinLength(1)
-    @Field(() => String)
-    @Column({ ...VAR_CHAR })
-    public country!: string;
+export class ExchangeRate {
+  @PrimaryGeneratedColumn('uuid')
+  id!: string;
 
-    @IsString()
-    @MinLength(1)
-    @Field(() => String)
-    @Column({ ...VAR_CHAR })
-    public currency!: string;
+  @Column({ type: 'varchar', length: 3 })
+  currencyCode!: string;
 
-    @IsString()
-    @MinLength(3)
-    @Field(() => String)
-    @Column({ ...VAR_CHAR, length: 3 })
-    public code!: string;
+  @Column({ type: 'varchar', length: 100 })
+  country!: string;
 
-    @IsNumber()
-    @IsPositive()
-    @Field(() => Float)
-    @Column('float')
-    public rate!: number;
+  @Column({ type: 'varchar', length: 50 })
+  currency!: string;
 
-    @Field(() => Date)
-    @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-    cacheTimestamp!: Date;
+  @Column({ type: 'int' })
+  amount!: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 4 })
+  rate!: number;
+
+  @CreateDateColumn({
+    type: 'timestamp with time zone',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
+  createdAt!: Date;
+
+  @UpdateDateColumn({
+    type: 'timestamp with time zone',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
+  updatedAt!: Date;
 }

@@ -43,7 +43,7 @@ const ExchangeRatesTable: React.FC = () => {
     return (
         <Box sx={{ p: 4 }}>
             <Typography variant="h4" align="center" fontWeight="bold" gutterBottom>
-                Czech National Bank Exchange Rates
+                Exchange Rates
             </Typography>
 
             <Box
