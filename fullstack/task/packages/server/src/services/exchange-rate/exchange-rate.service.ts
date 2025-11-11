@@ -4,15 +4,11 @@ import axios from 'axios';
 import { Repository } from 'typeorm';
 
 import { ExchangeRatesResponse } from './exchange-rate.type';
+import { CACHE_DURATION_MS, CNB_API_URL } from '../../consts';
 import { ExchangeRate } from '../../entities';
 
 @Injectable()
 export class ExchangeRateService {
-  private readonly CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
-  private readonly CNB_API_URL =
-    // eslint-disable-next-line max-len
-    'https://www.cnb.cz/en/financial-markets/foreign-exchange-market/central-bank-exchange-rate-fixing/central-bank-exchange-rate-fixing/daily.txt';
-
   private readonly logger = new Logger(ExchangeRateService.name);
 
   constructor(
@@ -26,15 +22,13 @@ export class ExchangeRateService {
   async getExchangeRates(): Promise<ExchangeRatesResponse> {
     const latestCache = await this.getLatestCacheTime();
 
-    if (!latestCache || this.isCacheExpired(latestCache)) {
-      return this.fetchAndCacheRates();
-    }
+    if (!latestCache || this.isCacheExpired(latestCache)) return this.fetchAndCacheRates();
 
     const cachedRates = await this.getCachedRates();
+
     return {
       rates: cachedRates,
       lastUpdated: latestCache,
-      isFromCache: true,
     };
   }
 
@@ -43,7 +37,7 @@ export class ExchangeRateService {
    */
   private isCacheExpired(latestCache: Date): boolean {
     const age = Date.now() - latestCache.getTime();
-    return age >= this.CACHE_DURATION_MS;
+    return age >= CACHE_DURATION_MS;
   }
 
   /**
@@ -64,6 +58,7 @@ export class ExchangeRateService {
         order: { createdAt: 'DESC' },
         take: 1,
       });
+
       return latest.length ? latest[0].createdAt : null;
     } catch (error) {
       this.logger.error('Error fetching latest cache time', error);
@@ -76,7 +71,7 @@ export class ExchangeRateService {
    */
   private async fetchAndCacheRates(): Promise<ExchangeRatesResponse> {
     try {
-      const { data } = await axios.get(this.CNB_API_URL);
+      const { data } = await axios.get(CNB_API_URL as string);
       const rates = this.parseCNBData(data);
 
       // Clear old rates and save new ones atomically
@@ -86,7 +81,6 @@ export class ExchangeRateService {
       return {
         rates: savedRates,
         lastUpdated: new Date(),
-        isFromCache: false,
       };
     } catch (error) {
       this.logger.error('Error fetching CNB exchange rates', error);
@@ -97,7 +91,6 @@ export class ExchangeRateService {
       return {
         rates: cachedRates,
         lastUpdated: latestCache ?? new Date(),
-        isFromCache: true,
       };
     }
   }
@@ -106,24 +99,38 @@ export class ExchangeRateService {
    * Parse CNB text data into ExchangeRate entities.
    */
   private parseCNBData(data: string): Partial<ExchangeRate>[] {
-    const lines = data.trim().split('\n').slice(2); // skip header lines
-    const rates: Partial<ExchangeRate>[] = [];
+    if (!data) return [];
 
-    for (const line of lines) {
-      if (!line.trim()) continue;
+    return data
+      .trim()
+      .split('\n')
+      .slice(2)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [country, currency, amountStr, currencyCode, rateStr] = line
+          .split('|')
+          .map((s) => s.trim());
 
-      const [country, currency, amountStr, currencyCode, rateStr] = line.split('|');
-      if (!country || !currency || !amountStr || !currencyCode || !rateStr) continue;
+        if (!country || !currency || !amountStr || !currencyCode || !rateStr) {
+          return null;
+        }
 
-      rates.push({
-        country: country.trim(),
-        currency: currency.trim(),
-        amount: parseInt(amountStr.trim(), 10),
-        currencyCode: currencyCode.trim(),
-        rate: parseFloat(rateStr.trim().replace(',', '.')),
-      });
-    }
+        const amount = Number.parseInt(amountStr, 10);
+        const rate = Number.parseFloat(rateStr.replace(',', '.'));
 
-    return rates;
+        if (Number.isNaN(amount) || Number.isNaN(rate)) {
+          return null;
+        }
+
+        return {
+          country,
+          currency,
+          amount,
+          currencyCode,
+          rate,
+        };
+      })
+      .filter((item) => item !== null) as Partial<ExchangeRate>[];
   }
 }

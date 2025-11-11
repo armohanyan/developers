@@ -21,7 +21,6 @@ scalar DateTime
 type ExchangeRatesResponse {
   rates: [ExchangeRateType!]!
   lastUpdated: DateTime!
-  isFromCache: Boolean!
 }
 
 type Query {

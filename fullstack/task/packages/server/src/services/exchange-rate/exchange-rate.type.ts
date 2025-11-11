@@ -34,7 +34,4 @@ export class ExchangeRatesResponse {
 
   @Field()
   lastUpdated!: Date;
-
-  @Field()
-  isFromCache!: boolean;
 }

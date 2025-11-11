@@ -13,11 +13,11 @@ import {
     TableRow,
     Typography,
 } from '@mui/material';
-import { EXCHANGE_RATES_QUERY } from '../graphql/exchangeRatesQuery';
-import { ExchangeRatesData } from '../types/exchangeRates';
+import { EXCHANGE_RATES_QUERY } from '../graphql/exchange-rates.query';
+import { IExchangeRatesData } from '../types/exchange-rates.types';
 
 const ExchangeRatesTable: React.FC = () => {
-    const { data, loading, error } = useQuery<ExchangeRatesData>(EXCHANGE_RATES_QUERY);
+    const { data, loading, error } = useQuery<IExchangeRatesData>(EXCHANGE_RATES_QUERY);
 
     if (loading) {
         return (

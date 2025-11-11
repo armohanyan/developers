@@ -1,4 +1,4 @@
-export interface ExchangeRate {
+export interface IExchangeRate {
     id: string;
     country: string;
     currency: string;
@@ -9,10 +9,9 @@ export interface ExchangeRate {
     updatedAt: string;
 }
 
-export interface ExchangeRatesData {
+export interface IExchangeRatesData {
     exchangeRates: {
-        rates: ExchangeRate[];
+        rates: IExchangeRate[];
         lastUpdated: string;
-        isFromCache: boolean;
     };
 }
